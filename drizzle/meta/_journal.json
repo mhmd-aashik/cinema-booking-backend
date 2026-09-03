@@ -8,6 +8,13 @@
       "when": 1788463136837,
       "tag": "0000_late_mentallo",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788466540697,
+      "tag": "0001_adorable_giant_man",
+      "breakpoints": true
     }
   ]
 }
