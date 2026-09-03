@@ -1,4 +1,4 @@
-import { Body, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { DATABASE_CONNECTION } from 'src/database/database.constants';
 import type { Database } from 'src/database/database.types';
 import { movies } from 'src/database/schema';
@@ -64,5 +64,20 @@ export class MoviesService {
     }
 
     return movie;
+  }
+
+  async remove(id: string) {
+    const [movie] = await this.db
+      .delete(movies)
+      .where(eq(movies.id, id))
+      .returning();
+
+    if (!movie) {
+      throw new NotFoundException('Movie not found');
+    }
+
+    return {
+      message: 'Movie deleted successfully',
+    };
   }
 }

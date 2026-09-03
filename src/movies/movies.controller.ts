@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseUUIDPipe,
@@ -36,5 +37,10 @@ export class MoviesController {
     @Body() dto: UpdateMovieDto,
   ) {
     return this.moviesService.update(id, dto);
+  }
+
+  @Delete(':id')
+  async remove(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.moviesService.remove(id);
   }
 }
