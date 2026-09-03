@@ -1,4 +1,11 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Post,
+} from '@nestjs/common';
 import { MoviesService } from './movies.service';
 import { CreateMovieDto } from './dto/create-movie.dto';
 
@@ -9,6 +16,11 @@ export class MoviesController {
   @Get()
   async findAll() {
     return this.moviesService.findAll();
+  }
+
+  @Get(':id')
+  async findOne(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.moviesService.findOne(id);
   }
 
   @Post()

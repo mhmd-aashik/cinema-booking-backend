@@ -1,8 +1,9 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { DATABASE_CONNECTION } from 'src/database/database.constants';
 import type { Database } from 'src/database/database.types';
 import { movies } from 'src/database/schema';
 import { CreateMovieDto } from './dto/create-movie.dto';
+import { eq } from 'drizzle-orm';
 
 @Injectable()
 export class MoviesService {
@@ -13,6 +14,22 @@ export class MoviesService {
 
   async findAll() {
     return this.db.select().from(movies);
+  }
+
+  async findOne(id: string) {
+    // Find the movie whose id matches the route parameter.
+    const [movie] = await this.db
+      .select()
+      .from(movies)
+      .where(eq(movies.id, id))
+      .limit(1);
+
+    // If nothing is returned, respond with HTTP 404.
+    if (!movie) {
+      throw new NotFoundException('Movie not found');
+    }
+
+    return movie;
   }
 
   async create(dto: CreateMovieDto) {
