@@ -11,6 +11,7 @@ import {
   payments,
   showSeats,
 } from 'src/database/schema';
+import { RedisService } from 'src/infrastructure/redis/redis.service';
 
 @Injectable()
 export class PaymentsService {
@@ -20,6 +21,8 @@ export class PaymentsService {
     @Inject(DATABASE_CONNECTION)
     private readonly db: Database,
     configService: ConfigService,
+
+    private readonly redisService: RedisService,
   ) {
     this.stripe = new Stripe(
       configService.getOrThrow<string>('STRIPE_SECRET_KEY'),
@@ -143,6 +146,9 @@ export class PaymentsService {
           })
           .where(inArray(showSeats.id, showSeatIds));
       }
+      // DB transaction succeeded.
+      // Now remove temporary Redis holds.
+      await this.redisService.releaseSeats(showSeatIds);
     });
   }
 }

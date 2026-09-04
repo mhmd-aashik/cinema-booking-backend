@@ -100,22 +100,11 @@ export class RedisService {
    * The hold will only be removed
    * if ownership still matches.
    */
-  async releaseSeats(
-    showSeatIds: string[],
-    userId: string,
-    bookingId: string,
-    holdToken: string,
-  ): Promise<void> {
-    for (const showSeatId of showSeatIds) {
-      const key = this.getSeatHoldKey(showSeatId);
+  async releaseSeats(showSeatIds: string[]) {
+    const keys = showSeatIds.map((id) => `seat-hold:${id}`);
 
-      const expectedValue = JSON.stringify({
-        userId,
-        bookingId,
-        holdToken,
-      });
-
-      await this.releaseLock(key, expectedValue);
+    if (keys.length > 0) {
+      await this.redis.del(...keys);
     }
   }
 
