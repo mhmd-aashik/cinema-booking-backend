@@ -1,4 +1,4 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post } from '@nestjs/common';
 import { CreateScreenDto } from './dto/create-screen.dto';
 import { ScreensService } from './screens.service';
 
@@ -9,5 +9,10 @@ export class ScreensController {
   @Post()
   async create(@Body() dto: CreateScreenDto) {
     return this.screensService.create(dto);
+  }
+
+  @Get()
+  async findAll() {
+    return this.screensService.findAll();
   }
 }

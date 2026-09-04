@@ -58,4 +58,8 @@ export class ScreensService {
 
     return screen;
   }
+
+  async findAll() {
+    return this.db.select().from(screens);
+  }
 }

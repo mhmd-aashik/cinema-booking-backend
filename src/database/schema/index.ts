@@ -6,3 +6,4 @@ export * from './shows.schema';
 export * from './show-seats.schema';
 export * from './users.schema';
 export * from './bookings.schema';
+export * from './booking-seats.schema';
