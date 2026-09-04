@@ -14,12 +14,20 @@ import { MailModule } from './infrastructure/mail/mail.module';
 import { PaymentsModule } from './payments/payments.module';
 import { QueueModule } from './infrastructure/queue/queue.module';
 import { AuthModule } from './auth/auth.module';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000,
+        limit: 20,
+      },
+    ]),
     RedisModule,
     MailModule,
     DatabaseModule,
@@ -33,6 +41,12 @@ import { AuthModule } from './auth/auth.module';
     PaymentsModule,
     QueueModule,
     AuthModule,
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
   ],
 })
 export class AppModule {}
