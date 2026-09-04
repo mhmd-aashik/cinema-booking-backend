@@ -1,9 +1,19 @@
-import { Body, Controller, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { BookingsService } from './bookings.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { AddBookingSeatsDto } from './dto/add-booking-seats.dto';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
+import type { AuthUser } from 'src/auth/auth-user.type';
+import { CurrentUser } from 'src/auth/current-user.decorator';
 
 @Controller('bookings')
 export class BookingsController {
@@ -14,9 +24,10 @@ export class BookingsController {
     private readonly bookingQueue: Queue,
   ) {}
 
+  @UseGuards(JwtAuthGuard)
   @Post()
-  async create(@Body() dto: CreateBookingDto) {
-    return this.bookingsService.create(dto);
+  async create(@CurrentUser() user: AuthUser, @Body() dto: CreateBookingDto) {
+    return this.bookingsService.create(user.id, dto);
   }
 
   @Post(':bookingId/seats')

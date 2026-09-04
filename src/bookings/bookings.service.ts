@@ -31,21 +31,20 @@ export class BookingsService {
     private readonly bookingQueue: Queue,
   ) {}
 
-  async create(dto: CreateBookingDto) {
-    // Verify user exists.
+  async create(userId: string, dto: CreateBookingDto) {
+    // User ID now comes from authenticated JWT.
     const [user] = await this.db
       .select({
         id: users.id,
       })
       .from(users)
-      .where(eq(users.id, dto.userId))
+      .where(eq(users.id, userId))
       .limit(1);
 
     if (!user) {
       throw new NotFoundException('User not found');
     }
 
-    // Verify show exists.
     const [show] = await this.db
       .select({
         id: shows.id,
@@ -58,23 +57,17 @@ export class BookingsService {
       throw new NotFoundException('Show not found');
     }
 
-    // Simple booking reference for now.
     const bookingReference = `BK-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
 
-    // Temporary expiry:
-    // booking remains pending for 5 minutes.
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
     const [booking] = await this.db
       .insert(bookings)
       .values({
-        userId: dto.userId,
+        userId,
         showId: dto.showId,
         bookingReference,
-
-        // No seats selected yet.
         totalAmount: '0.00',
-
         expiresAt,
       })
       .returning();
@@ -85,7 +78,7 @@ export class BookingsService {
         bookingId: booking.id,
       },
       {
-        delay: 10 * 1000,
+        delay: 5 * 60 * 1000,
       },
     );
 
