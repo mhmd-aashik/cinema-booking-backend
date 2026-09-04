@@ -50,6 +50,13 @@
       "when": 1788489942238,
       "tag": "0006_striped_invaders",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1788490318180,
+      "tag": "0007_remarkable_shriek",
+      "breakpoints": true
     }
   ]
 }
