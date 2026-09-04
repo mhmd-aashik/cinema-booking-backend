@@ -1,8 +1,19 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { and, eq, inArray } from 'drizzle-orm';
 import { DATABASE_CONNECTION } from 'src/database/database.constants';
 import type { Database } from 'src/database/database.types';
-import { users, shows, bookings } from 'src/database/schema';
+import {
+  users,
+  shows,
+  bookings,
+  bookingSeats,
+  showSeats,
+} from 'src/database/schema';
 import { CreateBookingDto } from './dto/create-booking.dto';
 
 @Injectable()
@@ -61,5 +72,94 @@ export class BookingsService {
       .returning();
 
     return booking;
+  }
+
+  async addSeats(bookingId: string, showSeatIds: string[]) {
+    // 1. Find the booking.
+    const [booking] = await this.db
+      .select()
+      .from(bookings)
+      .where(eq(bookings.id, bookingId))
+      .limit(1);
+
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    // 2. Only pending bookings can still be modified.
+    if (booking.status !== 'PENDING') {
+      throw new BadRequestException('Only pending bookings can be modified');
+    }
+
+    // 3. Check booking expiry.
+    if (booking.expiresAt && booking.expiresAt.getTime() < Date.now()) {
+      throw new BadRequestException('Booking has expired');
+    }
+
+    // 4. Load requested seats from DB.
+    // Also make sure they belong to this booking's show.
+    const selectedShowSeats = await this.db
+      .select()
+      .from(showSeats)
+      .where(
+        and(
+          eq(showSeats.showId, booking.showId),
+          inArray(showSeats.id, showSeatIds),
+        ),
+      );
+
+    // 5. Every requested seat must exist.
+    if (selectedShowSeats.length !== showSeatIds.length) {
+      throw new BadRequestException(
+        'One or more seats are invalid for this show',
+      );
+    }
+
+    // 6. For now, permanent BOOKED seats cannot be selected.
+    const unavailableSeat = selectedShowSeats.find(
+      (seat) => seat.status !== 'AVAILABLE',
+    );
+
+    if (unavailableSeat) {
+      throw new BadRequestException('One or more seats are unavailable');
+    }
+
+    // 7. Calculate price from DB.
+    // Never accept seat price from the frontend.
+    const totalAmount = selectedShowSeats.reduce(
+      (total, seat) => total + Number(seat.price),
+      0,
+    );
+
+    // 8. Create the booking-seat rows inside a transaction.
+    return this.db.transaction(async (tx) => {
+      const rows: (typeof bookingSeats.$inferInsert)[] = selectedShowSeats.map(
+        (seat) => ({
+          bookingId: booking.id,
+          showSeatId: seat.id,
+          price: seat.price,
+        }),
+      );
+
+      const insertedSeats = await tx
+        .insert(bookingSeats)
+        .values(rows)
+        .returning();
+
+      // 9. Update the booking total.
+      const [updatedBooking] = await tx
+        .update(bookings)
+        .set({
+          totalAmount: totalAmount.toFixed(2),
+          updatedAt: new Date(),
+        })
+        .where(eq(bookings.id, booking.id))
+        .returning();
+
+      return {
+        booking: updatedBooking,
+        seats: insertedSeats,
+      };
+    });
   }
 }
