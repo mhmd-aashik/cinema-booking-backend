@@ -15,12 +15,15 @@ import {
   showSeats,
 } from 'src/database/schema';
 import { CreateBookingDto } from './dto/create-booking.dto';
+import { RedisService } from 'src/infrastructure/redis/redis.service';
 
 @Injectable()
 export class BookingsService {
   constructor(
     @Inject(DATABASE_CONNECTION)
     private readonly db: Database,
+
+    private readonly redisService: RedisService,
   ) {}
 
   async create(dto: CreateBookingDto) {
@@ -123,6 +126,11 @@ export class BookingsService {
     if (unavailableSeat) {
       throw new BadRequestException('One or more seats are unavailable');
     }
+
+    // Temporarily hold the seats in Redis for 5 minutes.
+    // If another customer already holds one of them,
+    // RedisService should throw a 409 Conflict.
+    await this.redisService.holdSeats(showSeatIds, booking.userId, booking.id);
 
     // 7. Calculate price from DB.
     // Never accept seat price from the frontend.
