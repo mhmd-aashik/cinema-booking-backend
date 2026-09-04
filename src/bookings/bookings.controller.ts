@@ -14,6 +14,8 @@ import { Queue } from 'bullmq';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import type { AuthUser } from 'src/auth/auth-user.type';
 import { CurrentUser } from 'src/auth/current-user.decorator';
+import { RolesGuard } from 'src/auth/roles.guard';
+import { Roles } from 'src/auth/roles.decorator';
 
 @Controller('bookings')
 export class BookingsController {
@@ -24,7 +26,8 @@ export class BookingsController {
     private readonly bookingQueue: Queue,
   ) {}
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
   @Post()
   async create(@CurrentUser() user: AuthUser, @Body() dto: CreateBookingDto) {
     return this.bookingsService.create(user.id, dto);
