@@ -13,6 +13,7 @@ import { RedisModule } from './infrastructure/redis/redis.module';
 import { MailModule } from './infrastructure/mail/mail.module';
 import { PaymentsModule } from './payments/payments.module';
 import { QueueModule } from './infrastructure/queue/queue.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { QueueModule } from './infrastructure/queue/queue.module';
     BookingsModule,
     PaymentsModule,
     QueueModule,
+    AuthModule,
   ],
 })
 export class AppModule {}
