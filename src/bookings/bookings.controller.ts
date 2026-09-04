@@ -2,10 +2,17 @@ import { Body, Controller, Param, ParseUUIDPipe, Post } from '@nestjs/common';
 import { BookingsService } from './bookings.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { AddBookingSeatsDto } from './dto/add-booking-seats.dto';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 
 @Controller('bookings')
 export class BookingsController {
-  constructor(private readonly bookingsService: BookingsService) {}
+  constructor(
+    private readonly bookingsService: BookingsService,
+
+    @InjectQueue('booking')
+    private readonly bookingQueue: Queue,
+  ) {}
 
   @Post()
   async create(@Body() dto: CreateBookingDto) {
@@ -21,5 +28,19 @@ export class BookingsController {
     dto: AddBookingSeatsDto,
   ) {
     return this.bookingsService.addSeats(bookingId, dto.showSeatIds);
+  }
+
+  @Post(':bookingId/test-email')
+  async testEmail(
+    @Param('bookingId', ParseUUIDPipe)
+    bookingId: string,
+  ) {
+    await this.bookingQueue.add('send-confirmation-email', {
+      bookingId,
+    });
+
+    return {
+      message: 'Email job added',
+    };
   }
 }
