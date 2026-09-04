@@ -9,12 +9,14 @@ import { SeatsModule } from './seats/seats.module';
 import { ShowsModule } from './shows/shows.module';
 import { UsersModule } from './users/users.module';
 import { BookingsModule } from './bookings/bookings.module';
+import { RedisModule } from './infrastructure/redis/redis.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    RedisModule,
     DatabaseModule,
     MoviesModule,
     CinemasModule,
