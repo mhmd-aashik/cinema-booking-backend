@@ -95,4 +95,8 @@ export class ShowsService {
       return show;
     });
   }
+
+  async findAll() {
+    return this.db.select().from(shows);
+  }
 }

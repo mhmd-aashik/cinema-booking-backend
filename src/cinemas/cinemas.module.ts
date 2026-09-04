@@ -4,6 +4,6 @@ import { CinemasController } from './cinemas.controller';
 
 @Module({
   providers: [CinemasService],
-  controllers: [CinemasController]
+  controllers: [CinemasController],
 })
 export class CinemasModule {}
