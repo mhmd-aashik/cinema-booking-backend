@@ -21,6 +21,10 @@ export const users = pgTable('users', {
     length: 30,
   }),
 
+  passwordHash: varchar('password_hash', {
+    length: 255,
+  }),
+
   // For this project we only need:
   // CUSTOMER
   // ADMIN

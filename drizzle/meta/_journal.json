@@ -71,6 +71,13 @@
       "when": 1788500299680,
       "tag": "0009_melodic_cobalt_man",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1788505830157,
+      "tag": "0010_windy_gwen_stacy",
+      "breakpoints": true
     }
   ]
 }
