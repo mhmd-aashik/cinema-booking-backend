@@ -43,6 +43,13 @@
       "when": 1788489048054,
       "tag": "0005_misty_ozymandias",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788489942238,
+      "tag": "0006_striped_invaders",
+      "breakpoints": true
     }
   ]
 }
