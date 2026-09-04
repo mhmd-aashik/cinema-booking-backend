@@ -16,6 +16,8 @@ import {
 } from 'src/database/schema';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { RedisService } from 'src/infrastructure/redis/redis.service';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 
 @Injectable()
 export class BookingsService {
@@ -24,6 +26,9 @@ export class BookingsService {
     private readonly db: Database,
 
     private readonly redisService: RedisService,
+
+    @InjectQueue('booking')
+    private readonly bookingQueue: Queue,
   ) {}
 
   async create(dto: CreateBookingDto) {
@@ -73,6 +78,16 @@ export class BookingsService {
         expiresAt,
       })
       .returning();
+
+    await this.bookingQueue.add(
+      'expire-booking',
+      {
+        bookingId: booking.id,
+      },
+      {
+        delay: 10 * 1000,
+      },
+    );
 
     return booking;
   }

@@ -11,6 +11,7 @@ import { UsersModule } from './users/users.module';
 import { BookingsModule } from './bookings/bookings.module';
 import { RedisModule } from './infrastructure/redis/redis.module';
 import { PaymentsModule } from './payments/payments.module';
+import { QueueModule } from './infrastructure/queue/queue.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { PaymentsModule } from './payments/payments.module';
     UsersModule,
     BookingsModule,
     PaymentsModule,
+    QueueModule,
   ],
 })
 export class AppModule {}
