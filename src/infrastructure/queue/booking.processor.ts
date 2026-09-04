@@ -7,6 +7,7 @@ import { DATABASE_CONNECTION } from 'src/database/database.constants';
 import type { Database } from 'src/database/database.types';
 import { bookings, bookingSeats } from 'src/database/schema';
 import { RedisService } from '../redis/redis.service';
+import QRCode from 'qrcode';
 
 @Processor('booking')
 export class BookingProcessor extends WorkerHost {
@@ -62,5 +63,17 @@ export class BookingProcessor extends WorkerHost {
 
     // 5. Remove temporary Redis holds
     await this.redisService.releaseSeats(showSeatIds);
+  }
+
+  private async generateTicketQr(bookingId: string) {
+    const qrData = JSON.stringify({
+      bookingId,
+    });
+
+    const qrImage = await QRCode.toDataURL(qrData);
+
+    console.log('QR generated:', bookingId);
+
+    return qrImage;
   }
 }
