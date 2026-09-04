@@ -10,6 +10,7 @@ import { ShowsModule } from './shows/shows.module';
 import { UsersModule } from './users/users.module';
 import { BookingsModule } from './bookings/bookings.module';
 import { RedisModule } from './infrastructure/redis/redis.module';
+import { MailModule } from './infrastructure/mail/mail.module';
 import { PaymentsModule } from './payments/payments.module';
 import { QueueModule } from './infrastructure/queue/queue.module';
 
@@ -19,6 +20,7 @@ import { QueueModule } from './infrastructure/queue/queue.module';
       isGlobal: true,
     }),
     RedisModule,
+    MailModule,
     DatabaseModule,
     MoviesModule,
     CinemasModule,
