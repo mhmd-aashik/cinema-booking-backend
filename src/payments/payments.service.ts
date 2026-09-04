@@ -12,6 +12,8 @@ import {
   showSeats,
 } from 'src/database/schema';
 import { RedisService } from 'src/infrastructure/redis/redis.service';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 
 @Injectable()
 export class PaymentsService {
@@ -23,6 +25,9 @@ export class PaymentsService {
     configService: ConfigService,
 
     private readonly redisService: RedisService,
+
+    @InjectQueue('booking')
+    private readonly bookingQueue: Queue,
   ) {
     this.stripe = new Stripe(
       configService.getOrThrow<string>('STRIPE_SECRET_KEY'),
@@ -100,14 +105,13 @@ export class PaymentsService {
       throw new BadRequestException('Payment not found');
     }
 
-    // Idempotency:
-    // Stripe may send the same webhook more than once.
     if (payment.status === 'SUCCEEDED') {
       return;
     }
 
+    let showSeatIds: string[] = [];
+
     await this.db.transaction(async (tx) => {
-      // 1. Mark payment successful
       await tx
         .update(payments)
         .set({
@@ -116,7 +120,6 @@ export class PaymentsService {
         })
         .where(eq(payments.id, payment.id));
 
-      // 2. Confirm booking
       await tx
         .update(bookings)
         .set({
@@ -126,7 +129,6 @@ export class PaymentsService {
         })
         .where(eq(bookings.id, payment.bookingId));
 
-      // 3. Get seats from this booking
       const selectedSeats = await tx
         .select({
           showSeatId: bookingSeats.showSeatId,
@@ -134,9 +136,8 @@ export class PaymentsService {
         .from(bookingSeats)
         .where(eq(bookingSeats.bookingId, payment.bookingId));
 
-      const showSeatIds = selectedSeats.map((seat) => seat.showSeatId);
+      showSeatIds = selectedSeats.map((seat) => seat.showSeatId);
 
-      // 4. Permanently mark seats BOOKED
       if (showSeatIds.length > 0) {
         await tx
           .update(showSeats)
@@ -146,9 +147,18 @@ export class PaymentsService {
           })
           .where(inArray(showSeats.id, showSeatIds));
       }
-      // DB transaction succeeded.
-      // Now remove temporary Redis holds.
-      await this.redisService.releaseSeats(showSeatIds);
+    });
+
+    // DB committed successfully
+    await this.redisService.releaseSeats(showSeatIds);
+
+    // Background jobs
+    await this.bookingQueue.add('generate-ticket-qr', {
+      bookingId: payment.bookingId,
+    });
+
+    await this.bookingQueue.add('send-confirmation-email', {
+      bookingId: payment.bookingId,
     });
   }
 }
