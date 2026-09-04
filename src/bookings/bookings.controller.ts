@@ -11,12 +11,15 @@ import { CreateBookingDto } from './dto/create-booking.dto';
 import { AddBookingSeatsDto } from './dto/add-booking-seats.dto';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import type { AuthUser } from 'src/auth/auth-user.type';
 import { CurrentUser } from 'src/auth/current-user.decorator';
 import { RolesGuard } from 'src/auth/roles.guard';
 import { Roles } from 'src/auth/roles.decorator';
 
+@ApiTags('bookings')
 @Controller('bookings')
 export class BookingsController {
   constructor(
@@ -26,6 +29,7 @@ export class BookingsController {
     private readonly bookingQueue: Queue,
   ) {}
 
+  @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')
   @Post()

@@ -1,7 +1,10 @@
 import { Body, Controller, Get, Post } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
+
 import { CreateScreenDto } from './dto/create-screen.dto';
 import { ScreensService } from './screens.service';
 
+@ApiTags('screens')
 @Controller('screens')
 export class ScreensController {
   constructor(private readonly screensService: ScreensService) {}
