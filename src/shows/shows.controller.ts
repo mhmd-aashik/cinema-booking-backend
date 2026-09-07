@@ -1,7 +1,8 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 
 import { CreateShowDto } from './dto/create-show.dto';
+import { FindShowsDto } from './dto/find-shows.dto';
 import { ShowsService } from './shows.service';
 
 @ApiTags('shows')
@@ -15,7 +16,17 @@ export class ShowsController {
   }
 
   @Get()
-  async findAll() {
-    return this.showsService.findAll();
+  async findAll(@Query() filter: FindShowsDto) {
+    return this.showsService.findAll(filter);
+  }
+
+  @Get(':id')
+  async findOne(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.showsService.findOne(id);
+  }
+
+  @Get(':id/seats')
+  async findSeats(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.showsService.findSeats(id);
   }
 }

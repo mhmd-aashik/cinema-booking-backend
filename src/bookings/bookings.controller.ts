@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Get,
   Param,
   ParseUUIDPipe,
   Post,
@@ -16,10 +17,10 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import type { AuthUser } from 'src/auth/auth-user.type';
 import { CurrentUser } from 'src/auth/current-user.decorator';
-import { RolesGuard } from 'src/auth/roles.guard';
-import { Roles } from 'src/auth/roles.decorator';
 
 @ApiTags('bookings')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 @Controller('bookings')
 export class BookingsController {
   constructor(
@@ -29,23 +30,35 @@ export class BookingsController {
     private readonly bookingQueue: Queue,
   ) {}
 
-  @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
   @Post()
   async create(@CurrentUser() user: AuthUser, @Body() dto: CreateBookingDto) {
     return this.bookingsService.create(user.id, dto);
   }
 
+  @Get()
+  async findMine(@CurrentUser() user: AuthUser) {
+    return this.bookingsService.findAllForUser(user.id);
+  }
+
+  @Get(':bookingId')
+  async findOne(
+    @CurrentUser() user: AuthUser,
+    @Param('bookingId', ParseUUIDPipe)
+    bookingId: string,
+  ) {
+    return this.bookingsService.findOneForUser(bookingId, user.id, user.role);
+  }
+
   @Post(':bookingId/seats')
   addSeats(
+    @CurrentUser() user: AuthUser,
     @Param('bookingId', ParseUUIDPipe)
     bookingId: string,
 
     @Body()
     dto: AddBookingSeatsDto,
   ) {
-    return this.bookingsService.addSeats(bookingId, dto.showSeatIds);
+    return this.bookingsService.addSeats(bookingId, user.id, dto.showSeatIds);
   }
 
   @Post(':bookingId/test-email')

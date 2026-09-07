@@ -5,7 +5,15 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    // Stripe webhook signature verification needs the raw request body.
+    rawBody: true,
+  });
+
+  app.enableCors({
+    origin: (process.env.CORS_ORIGIN ?? 'http://localhost:3000').split(','),
+    credentials: true,
+  });
 
   app.useGlobalPipes(
     new ValidationPipe({

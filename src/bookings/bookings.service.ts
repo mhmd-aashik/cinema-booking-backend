@@ -1,23 +1,30 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import { DATABASE_CONNECTION } from 'src/database/database.constants';
 import type { Database } from 'src/database/database.types';
 import {
   users,
   shows,
+  movies,
+  screens,
+  cinemas,
   bookings,
   bookingSeats,
   showSeats,
+  seats,
+  payments,
 } from 'src/database/schema';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { RedisService } from 'src/infrastructure/redis/redis.service';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import { SeatsGateway } from 'src/seats/seats.gateway';
 
 @Injectable()
 export class BookingsService {
@@ -27,12 +34,13 @@ export class BookingsService {
 
     private readonly redisService: RedisService,
 
+    private readonly seatsGateway: SeatsGateway,
+
     @InjectQueue('booking')
     private readonly bookingQueue: Queue,
   ) {}
 
   async create(userId: string, dto: CreateBookingDto) {
-    // User ID now comes from authenticated JWT.
     const [user] = await this.db
       .select({
         id: users.id,
@@ -85,8 +93,7 @@ export class BookingsService {
     return booking;
   }
 
-  async addSeats(bookingId: string, showSeatIds: string[]) {
-    // 1. Find the booking.
+  async addSeats(bookingId: string, userId: string, showSeatIds: string[]) {
     const [booking] = await this.db
       .select()
       .from(bookings)
@@ -97,18 +104,18 @@ export class BookingsService {
       throw new NotFoundException('Booking not found');
     }
 
-    // 2. Only pending bookings can still be modified.
+    if (booking.userId !== userId) {
+      throw new ForbiddenException('This booking does not belong to you');
+    }
+
     if (booking.status !== 'PENDING') {
       throw new BadRequestException('Only pending bookings can be modified');
     }
 
-    // 3. Check booking expiry.
     if (booking.expiresAt && booking.expiresAt.getTime() < Date.now()) {
       throw new BadRequestException('Booking has expired');
     }
 
-    // 4. Load requested seats from DB.
-    // Also make sure they belong to this booking's show.
     const selectedShowSeats = await this.db
       .select()
       .from(showSeats)
@@ -119,14 +126,12 @@ export class BookingsService {
         ),
       );
 
-    // 5. Every requested seat must exist.
     if (selectedShowSeats.length !== showSeatIds.length) {
       throw new BadRequestException(
         'One or more seats are invalid for this show',
       );
     }
 
-    // 6. For now, permanent BOOKED seats cannot be selected.
     const unavailableSeat = selectedShowSeats.find(
       (seat) => seat.status !== 'AVAILABLE',
     );
@@ -135,20 +140,14 @@ export class BookingsService {
       throw new BadRequestException('One or more seats are unavailable');
     }
 
-    // Temporarily hold the seats in Redis for 5 minutes.
-    // If another customer already holds one of them,
-    // RedisService should throw a 409 Conflict.
     await this.redisService.holdSeats(showSeatIds, booking.userId, booking.id);
 
-    // 7. Calculate price from DB.
-    // Never accept seat price from the frontend.
     const totalAmount = selectedShowSeats.reduce(
       (total, seat) => total + Number(seat.price),
       0,
     );
 
-    // 8. Create the booking-seat rows inside a transaction.
-    return this.db.transaction(async (tx) => {
+    const result = await this.db.transaction(async (tx) => {
       const rows: (typeof bookingSeats.$inferInsert)[] = selectedShowSeats.map(
         (seat) => ({
           bookingId: booking.id,
@@ -162,7 +161,6 @@ export class BookingsService {
         .values(rows)
         .returning();
 
-      // 9. Update the booking total.
       const [updatedBooking] = await tx
         .update(bookings)
         .set({
@@ -177,5 +175,102 @@ export class BookingsService {
         seats: insertedSeats,
       };
     });
+
+    this.seatsGateway.notifySeatsHeld(booking.showId, showSeatIds);
+
+    return result;
+  }
+
+  async findAllForUser(userId: string) {
+    const rows = await this.db
+      .select({
+        id: bookings.id,
+        bookingReference: bookings.bookingReference,
+        status: bookings.status,
+        totalAmount: bookings.totalAmount,
+        currency: bookings.currency,
+        expiresAt: bookings.expiresAt,
+        confirmedAt: bookings.confirmedAt,
+        createdAt: bookings.createdAt,
+        showStartsAt: shows.startsAt,
+        movieTitle: movies.title,
+        moviePosterUrl: movies.posterUrl,
+        cinemaName: cinemas.name,
+        screenName: screens.name,
+      })
+      .from(bookings)
+      .innerJoin(shows, eq(shows.id, bookings.showId))
+      .innerJoin(movies, eq(movies.id, shows.movieId))
+      .innerJoin(screens, eq(screens.id, shows.screenId))
+      .innerJoin(cinemas, eq(cinemas.id, screens.cinemaId))
+      .where(eq(bookings.userId, userId))
+      .orderBy(desc(bookings.createdAt));
+
+    return rows;
+  }
+
+  async findOneForUser(bookingId: string, userId: string, role: string) {
+    const [row] = await this.db
+      .select({
+        booking: bookings,
+        show: shows,
+        movie: movies,
+        screen: screens,
+        cinema: cinemas,
+      })
+      .from(bookings)
+      .innerJoin(shows, eq(shows.id, bookings.showId))
+      .innerJoin(movies, eq(movies.id, shows.movieId))
+      .innerJoin(screens, eq(screens.id, shows.screenId))
+      .innerJoin(cinemas, eq(cinemas.id, screens.cinemaId))
+      .where(eq(bookings.id, bookingId))
+      .limit(1);
+
+    if (!row) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    if (row.booking.userId !== userId && role !== 'ADMIN') {
+      throw new ForbiddenException('This booking does not belong to you');
+    }
+
+    const seatRows = await this.db
+      .select({
+        id: bookingSeats.id,
+        showSeatId: bookingSeats.showSeatId,
+        price: bookingSeats.price,
+        rowLabel: seats.rowLabel,
+        seatNumber: seats.seatNumber,
+        seatType: seats.seatType,
+      })
+      .from(bookingSeats)
+      .innerJoin(showSeats, eq(showSeats.id, bookingSeats.showSeatId))
+      .innerJoin(seats, eq(seats.id, showSeats.seatId))
+      .where(eq(bookingSeats.bookingId, bookingId));
+
+    const [payment] = await this.db
+      .select({
+        status: payments.status,
+        provider: payments.provider,
+        paidAt: payments.paidAt,
+      })
+      .from(payments)
+      .where(eq(payments.bookingId, bookingId))
+      .orderBy(desc(payments.createdAt))
+      .limit(1);
+
+    return {
+      ...row.booking,
+      show: {
+        ...row.show,
+        movie: row.movie,
+        screen: {
+          ...row.screen,
+          cinema: row.cinema,
+        },
+      },
+      seats: seatRows,
+      payment: payment ?? null,
+    };
   }
 }

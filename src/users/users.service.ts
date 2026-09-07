@@ -39,6 +39,34 @@ export class UsersService {
   }
 
   async findAll() {
-    return this.db.select().from(users);
+    return this.db
+      .select({
+        id: users.id,
+        email: users.email,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        phone: users.phone,
+        role: users.role,
+        createdAt: users.createdAt,
+      })
+      .from(users);
+  }
+
+  async findById(id: string) {
+    const [user] = await this.db
+      .select({
+        id: users.id,
+        email: users.email,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        phone: users.phone,
+        role: users.role,
+        createdAt: users.createdAt,
+      })
+      .from(users)
+      .where(eq(users.id, id))
+      .limit(1);
+
+    return user ?? null;
   }
 }

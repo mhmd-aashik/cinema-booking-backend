@@ -5,6 +5,7 @@ import { SeatsGateway } from './seats.gateway';
 
 @Module({
   providers: [SeatsService, SeatsGateway],
-  controllers: [SeatsController]
+  controllers: [SeatsController],
+  exports: [SeatsGateway],
 })
 export class SeatsModule {}

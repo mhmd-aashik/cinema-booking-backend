@@ -7,6 +7,7 @@ import type { Database } from 'src/database/database.types';
 import { bookings, bookingSeats, users } from 'src/database/schema';
 import { MailService } from '../mail/mail.service';
 import { RedisService } from '../redis/redis.service';
+import { SeatsGateway } from 'src/seats/seats.gateway';
 import QRCode from 'qrcode';
 
 @Processor('booking')
@@ -18,6 +19,8 @@ export class BookingProcessor extends WorkerHost {
     private readonly redisService: RedisService,
 
     private readonly mailService: MailService,
+
+    private readonly seatsGateway: SeatsGateway,
   ) {
     super();
   }
@@ -62,6 +65,10 @@ export class BookingProcessor extends WorkerHost {
     const showSeatIds = selectedSeats.map((seat) => seat.showSeatId);
 
     await this.redisService.releaseSeats(showSeatIds);
+
+    if (showSeatIds.length > 0) {
+      this.seatsGateway.notifySeatsReleased(booking.showId, showSeatIds);
+    }
   }
 
   private async generateTicketQr(bookingId: string, bookingReference: string) {

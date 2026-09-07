@@ -4,17 +4,28 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { DATABASE_CONNECTION } from 'src/database/database.constants';
 import type { Database } from 'src/database/database.types';
-import { movies, screens, seats, shows, showSeats } from 'src/database/schema';
+import {
+  movies,
+  screens,
+  cinemas,
+  seats,
+  shows,
+  showSeats,
+} from 'src/database/schema';
 import { CreateShowDto } from './dto/create-show.dto';
+import { FindShowsDto } from './dto/find-shows.dto';
+import { RedisService } from 'src/infrastructure/redis/redis.service';
 
 @Injectable()
 export class ShowsService {
   constructor(
     @Inject(DATABASE_CONNECTION)
     private readonly db: Database,
+
+    private readonly redisService: RedisService,
   ) {}
 
   async create(dto: CreateShowDto) {
@@ -96,7 +107,99 @@ export class ShowsService {
     });
   }
 
-  async findAll() {
-    return this.db.select().from(shows);
+  async findAll(filter: FindShowsDto) {
+    const conditions = [
+      filter.movieId ? eq(shows.movieId, filter.movieId) : undefined,
+      filter.cinemaId ? eq(cinemas.id, filter.cinemaId) : undefined,
+    ].filter((condition) => condition !== undefined);
+
+    const rows = await this.db
+      .select({
+        show: shows,
+        movie: movies,
+        screen: screens,
+        cinema: cinemas,
+      })
+      .from(shows)
+      .innerJoin(movies, eq(movies.id, shows.movieId))
+      .innerJoin(screens, eq(screens.id, shows.screenId))
+      .innerJoin(cinemas, eq(cinemas.id, screens.cinemaId))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(asc(shows.startsAt));
+
+    return rows.map(({ show, movie, screen, cinema }) => ({
+      ...show,
+      movie,
+      screen: {
+        ...screen,
+        cinema,
+      },
+    }));
+  }
+
+  async findOne(id: string) {
+    const [row] = await this.db
+      .select({
+        show: shows,
+        movie: movies,
+        screen: screens,
+        cinema: cinemas,
+      })
+      .from(shows)
+      .innerJoin(movies, eq(movies.id, shows.movieId))
+      .innerJoin(screens, eq(screens.id, shows.screenId))
+      .innerJoin(cinemas, eq(cinemas.id, screens.cinemaId))
+      .where(eq(shows.id, id))
+      .limit(1);
+
+    if (!row) {
+      throw new NotFoundException('Show not found');
+    }
+
+    return {
+      ...row.show,
+      movie: row.movie,
+      screen: {
+        ...row.screen,
+        cinema: row.cinema,
+      },
+    };
+  }
+
+  async findSeats(showId: string) {
+    const [show] = await this.db
+      .select({ id: shows.id })
+      .from(shows)
+      .where(eq(shows.id, showId))
+      .limit(1);
+
+    if (!show) {
+      throw new NotFoundException('Show not found');
+    }
+
+    const rows = await this.db
+      .select({
+        id: showSeats.id,
+        price: showSeats.price,
+        status: showSeats.status,
+        rowLabel: seats.rowLabel,
+        seatNumber: seats.seatNumber,
+        seatType: seats.seatType,
+      })
+      .from(showSeats)
+      .innerJoin(seats, eq(seats.id, showSeats.seatId))
+      .where(eq(showSeats.showId, showId))
+      .orderBy(asc(seats.rowLabel), asc(seats.seatNumber));
+
+    const availableIds = rows
+      .filter((seat) => seat.status === 'AVAILABLE')
+      .map((seat) => seat.id);
+
+    const heldIds = await this.redisService.getHeldSeatIds(availableIds);
+
+    return rows.map((seat) => ({
+      ...seat,
+      status: heldIds.has(seat.id) ? 'HELD' : seat.status,
+    }));
   }
 }

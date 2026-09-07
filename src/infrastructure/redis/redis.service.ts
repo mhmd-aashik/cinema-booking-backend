@@ -165,4 +165,35 @@ export class RedisService {
 
     return result === 1;
   }
+
+  /**
+   * Given a batch of show-seat ids, return the subset
+   * that is currently held by someone (pending payment).
+   * Uses a single pipelined round-trip instead of N calls.
+   */
+  async getHeldSeatIds(showSeatIds: string[]): Promise<Set<string>> {
+    if (showSeatIds.length === 0) {
+      return new Set();
+    }
+
+    const pipeline = this.redis.pipeline();
+
+    for (const showSeatId of showSeatIds) {
+      pipeline.exists(this.getSeatHoldKey(showSeatId));
+    }
+
+    const results = await pipeline.exec();
+
+    const held = new Set<string>();
+
+    results?.forEach((result, index) => {
+      const [, value] = result;
+
+      if (value === 1) {
+        held.add(showSeatIds[index]);
+      }
+    });
+
+    return held;
+  }
 }

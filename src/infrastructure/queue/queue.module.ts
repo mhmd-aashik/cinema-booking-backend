@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { BookingProcessor } from './booking.processor';
+import { SeatsModule } from 'src/seats/seats.module';
 
 @Module({
   imports: [
@@ -14,6 +15,8 @@ import { BookingProcessor } from './booking.processor';
     BullModule.registerQueue({
       name: 'booking',
     }),
+
+    SeatsModule,
   ],
 
   providers: [BookingProcessor],
