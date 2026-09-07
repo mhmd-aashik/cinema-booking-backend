@@ -49,6 +49,15 @@ export class BookingsController {
     return this.bookingsService.findOneForUser(bookingId, user.id, user.role);
   }
 
+  @Get(':bookingId/tickets')
+  async getTickets(
+    @CurrentUser() user: AuthUser,
+    @Param('bookingId', ParseUUIDPipe)
+    bookingId: string,
+  ) {
+    return this.bookingsService.getTickets(bookingId, user.id, user.role);
+  }
+
   @Post(':bookingId/seats')
   addSeats(
     @CurrentUser() user: AuthUser,

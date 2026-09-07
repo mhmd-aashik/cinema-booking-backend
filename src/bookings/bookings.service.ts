@@ -25,6 +25,7 @@ import { RedisService } from 'src/infrastructure/redis/redis.service';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { SeatsGateway } from 'src/seats/seats.gateway';
+import QRCode from 'qrcode';
 
 @Injectable()
 export class BookingsService {
@@ -271,6 +272,68 @@ export class BookingsService {
       },
       seats: seatRows,
       payment: payment ?? null,
+    };
+  }
+
+  async getTickets(bookingId: string, userId: string, role: string) {
+    const [booking] = await this.db
+      .select({
+        id: bookings.id,
+        bookingReference: bookings.bookingReference,
+        status: bookings.status,
+        userId: bookings.userId,
+      })
+      .from(bookings)
+      .where(eq(bookings.id, bookingId))
+      .limit(1);
+
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    if (booking.userId !== userId && role !== 'ADMIN') {
+      throw new ForbiddenException('This booking does not belong to you');
+    }
+
+    if (booking.status !== 'CONFIRMED') {
+      throw new BadRequestException(
+        'Tickets are only available for confirmed bookings',
+      );
+    }
+
+    const seatRows = await this.db
+      .select({
+        id: bookingSeats.id,
+        rowLabel: seats.rowLabel,
+        seatNumber: seats.seatNumber,
+        seatType: seats.seatType,
+      })
+      .from(bookingSeats)
+      .innerJoin(showSeats, eq(showSeats.id, bookingSeats.showSeatId))
+      .innerJoin(seats, eq(seats.id, showSeats.seatId))
+      .where(eq(bookingSeats.bookingId, bookingId));
+
+    const ticketSeats = await Promise.all(
+      seatRows.map(async (seat) => ({
+        id: seat.id,
+        rowLabel: seat.rowLabel,
+        seatNumber: seat.seatNumber,
+        seatType: seat.seatType,
+        qrDataUrl: await QRCode.toDataURL(
+          JSON.stringify({
+            bookingId: booking.id,
+            bookingReference: booking.bookingReference,
+            bookingSeatId: seat.id,
+            seat: `${seat.rowLabel}${seat.seatNumber}`,
+          }),
+          { margin: 1, width: 240 },
+        ),
+      })),
+    );
+
+    return {
+      bookingReference: booking.bookingReference,
+      seats: ticketSeats,
     };
   }
 }
